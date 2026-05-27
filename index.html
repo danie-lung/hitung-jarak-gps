@@ -319,7 +319,7 @@
 
         if (markerB) map.removeLayer(markerB);
 
-        markerB = L.marker([latB, lngB]).addTo(map).bindPopup(`<b>${name}</b><br>${alamat}`).openPopup();
+        markerB = L.marker([latB, lngB]).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
 
         if (distanceLine) map.removeLayer(distanceLine);
         distanceLine = L.polyline([coordA, [latB, lngB]], {color: 'red', weight: 3, dashArray: '5, 5'}).addTo(map);
