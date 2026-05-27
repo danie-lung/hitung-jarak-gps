@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hitung Jarak Sekolah - SPMB SMP Kota Bogor</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f6f9;
+            color: #333;
+        }
+        
+        .header-app {
+            max-width: 1200px;
+            margin: 0 auto 20px auto;
+            text-align: center;
+        }
+        .header-app h2 {
+            margin: 0;
+            color: #2c3e50;
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+        .header-app p {
+            margin: 5px 0 0 0;
+            color: #7f8c8d;
+            font-size: 1.1rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .header-app h2 {
+                font-size: 1.5rem;
+            }
+            .header-app p {
+                font-size: 0.95rem;
+            }
+            .container {
+                display: flex;
+                flex-direction: column;
+            }
+            #map {
+                order: 1;
+                height: 300px !important;
+                margin-bottom: 10px;
+            }
+            .panel {
+                order: 2;
+            }
+        }
+
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.95rem;
+        }
+        input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        .search-group {
+            display: flex;
+            gap: 5px;
+        }
+        .search-group button {
+            width: auto;
+            background: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .search-group button:hover {
+            background: #2980b9;
+        }
+        #map {
+            height: 550px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .results-list {
+            margin-top: 20px;
+            display: none;
+        }
+        .results-list h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.1rem;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+        }
+        .school-card {
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-left: 5px solid #2ecc71;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .school-card:hover {
+            background: #eafaf1;
+            border-color: #2ecc71;
+            transform: translateX(3px);
+        }
+        .school-card:first-child {
+            background: #e8f4fd;
+            border-left-color: #3498db;
+        }
+        .school-card:first-child:hover {
+            background: #d4eafd;
+        }
+        .school-name {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 0.95rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        .school-distance {
+            color: #e74c3c;
+            font-weight: 800;
+        }
+        .school-meta {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header-app">
+    <h2>Hitung Jarak Sekolah</h2>
+    <p>SPMB SMP Kota Bogor</p>
+</div>
+
+<div class="container">
+    <div class="panel">
+        <div class="form-group">
+            <label for="addressInput">Cari Alamat Rumah / Titik Awal:</label>
+            <div class="search-group">
+                <input type="text" id="addressInput" placeholder="Contoh: Stasiun Bogor">
+                <button type="button" onclick="searchAddress()">Cari</button>
+            </div>
+            <p style="font-size: 0.85rem; color: #7f8c8d; margin-top: 5px;">*Atau langsung ketuk/klik pada peta.</p>
+        </div>
+
+        <div class="form-group">
+            <label>Koordinat Terpilih (Titik A):</label>
+            <input type="text" id="coordInput" readonly placeholder="Belum memilih titik">
+        </div>
+
+        <div id="resultsWrapper" class="results-list">
+            <h3>Hasil Urutan Terdekat:</h3>
+            <div id="schoolsContainer"></div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    const dbSekolah = [
+        {name:"SMP NEGERI 1 BOGOR", lat:-6.597500000000, lng:106.793400000000, kecamatan:"Kec. Kota Bogor Tengah", alamat: "Jl.Ir. H. Djuanda Bogor No 16, Paledang, Kec. Kota Bogor Tengah, Kota Bogor"},
+		{name:"SMP NEGERI 2", lat:-6.592563000000, lng:106.793387000000, kecamatan:"Kec. Kota Bogor Tengah", alamat: "Jl. Gedong Sawah IV No. 9, Pabaton, Kec. Kota Bogor Tengah, Kota Bogor"},
+		{name:"SMP NEGERI 3 BOGOR", lat:-6.597200000000, lng:106.807400000000, kecamatan:"Kec. Kota Bogor Tengah", alamat: "Jl Malabar No 06 Bogor, Tegallega, Kec. Kota Bogor Tengah, Kota Bogor"},
+		{name:"SMP NEGERI 4 BOGOR", lat:-6.591600000000, lng:106.788500000000, kecamatan:"Kec. Kota Bogor Tengah", alamat: "Jl. Kartini No.16, ciwaringin, Kec. Kota Bogor Tengah, Kota Bogor"},
+		{name:"SMP NEGERI 5", lat:-6.569200000000, lng:106.800500000000, kecamatan:"Kec. Tanah Sareal", alamat: "Jl. Dadali No.10-A Bogor, Tanahsareal, Kec. Tanah Sareal, Kota Bogor"},
+		{name:"SMP NEGERI 6", lat:-6.578500000000, lng:106.771900000000, kecamatan:"Kec. Kota Bogor Barat", alamat: "Jl. Dr. Semeru-Gang Kelor No.4, Menteng, Kec. Kota Bogor Barat, Kota Bogor"},
+		{name:"SMP NEGERI 7 BOGOR", lat:-6.599582549899, lng:106.791144524385, kecamatan:"Kec. Kota Bogor Tengah", alamat: "Jl. Paledang No 25, Paledang, Kec. Kota Bogor Tengah, Kota Bogor"},
+		{name:"SMP NEGERI 8 BOGOR", lat:-6.569175031245, lng:106.806443974721, kecamatan:"Kec. Tanah Sareal", alamat: "Jl.Jend.A.yani No.140 Bogor, Tanahsareal, Kec. Tanah Sareal, Kota Bogor"},
+		{name:"SMP NEGERI 9 BOGOR", lat:-6.615672000000, lng:106.800342000000, kecamatan:"Kec. Kota Bogor Selatan", alamat: "Jalan Dereded V Nomor 14 Bogor, Empang, Kec. Kota Bogor Selatan, Kota Bogor"},
+		{name:"SMP NEGERI 10 BOGOR", lat:-6.629900000000, lng:106.812300000000, kecamatan:"Kec. Kota Bogor Selatan", alamat: "JL. KOMPLEK  PERUMDA I  CIPAKU BOGOR , Cipaku, Kec. Kota Bogor Selatan, Kota Bogor"},
+		{name:"SMP NEGERI 11 BOGOR", lat:-6.588800000000, lng:106.799300000000, kecamatan:"Kec. Kota Bogor Tengah", alamat: "Jl. Sempur No.46, Sempur, Kec. Kota Bogor Tengah, Kota Bogor"},
+		{name:"SMP NEGERI 12 BOGOR", lat:-6.571064702111, lng:106.798685407145, kecamatan:"Kec. Tanah Sareal", alamat: "Jl. Pemuda No.50 Bogor, Tanah Sareal, Kec. Tanah Sareal, Kota Bogor"},
+		{name:"SMP NEGERI 13 BOGOR", lat:-6.632900000000, lng:106.802600000000, kecamatan:"Kec. Kota Bogor Selatan", alamat: "Jl. Pamoyanan No. 022, Ranggamekar, Kec. Kota Bogor Selatan, Kota Bogor"},
+		{name:"SMP NEGERI 14 BOGOR", lat:-6.555100000000, lng:106.747500000000, kecamatan:"Kec. Kota Bogor Barat", alamat: "Jl.Sindang Barang Jero No.6 Situ Gede, Situgede, Kec. Kota Bogor Barat, Kota Bogor"},
+		{name:"SMP NEGERI 15 BOGOR", lat:-6.547000000000, lng:106.822100000000, kecamatan:"Kec. Kota Bogor Utara", alamat: "Jl. Mandala No. 50, Ciparigi, Kec. Kota Bogor Utara, Kota Bogor"},
+		{name:"SMP NEGERI 16", lat:-6.532900000000, lng:106.773100000000, kecamatan:"Kec. Tanah Sareal", alamat: "Jalan Baru Kayumanis, KAYUMANIS, Kec. Tanah Sareal, Kota Bogor"},
+		{name:"SMP NEGERI 17 BOGOR", lat:-6.673406700000, lng:106.840883300000, kecamatan:"Kec. Kota Bogor Selatan", alamat: "Rancamaya, Bojongkerta, Kec. Kota Bogor Selatan, Kota Bogor"},
+		{name:"SMP NEGERI 18 KOTA BOGOR", lat:-6.611985000000, lng:106.825913300000, kecamatan:"Kec. Kota Bogor Timur", alamat: "Jl. Jati Luhur Blok H-4 Komplek Baranangsiang Indah Bogor, Katulampa, Kec. Kota Bogor Timur, Kota Bogor"},
+		{name:"SMP NEGERI 19 BOGOR", lat:-6.547100000000, lng:106.809900000000, kecamatan:"Kec. Kota Bogor Utara", alamat: "Jl. Raya Pemda Villa Bogor Indah, Kedung Halang, Kec. Kota Bogor Utara, Kota Bogor"},
+		{name:"SMP NEGERI 20", lat:-6.583606000000, lng:106.799951000000, kecamatan:"Kec. Kota Bogor Tengah", alamat: "Jl. Ceremai Ujung No. 1, Sempur, Kec. Kota Bogor Tengah, Kota Bogor"},
+		{name:"SMP NEGERI 21 BOGOR", lat:-6.518299000000, lng:106.788795000000, kecamatan:"Kec. Tanah Sareal", alamat: "Komp. Perumahan Taman Griya Kencana, Kencana, Kec. Tanah Sareal, Kota Bogor"},
+		{name:"SMP NEGERI 22 BOGOR", lat:-6.612730000000, lng:106.817980000000, kecamatan:"Kec. Kota Bogor Timur", alamat: "Jl. Baranangsiang  Indah V\/14, Baranangsiang, Kec. Kota Bogor Timur, Kota Bogor"},
+		{name:"SMP NEGERI 23 BOGOR", lat:-6.588269600000, lng:106.832948700000, kecamatan:"Kec. Kota Bogor Utara", alamat: "Kampung Kebon Karet RT 001 RW 016, Cimahpar, Kec. Kota Bogor Utara, Kota Bogor"}
+    ];
+
+    const defaultCenter = [-6.5971, 106.7986];
+    const map = L.map('map').setView(defaultCenter, 14);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    let markerA = null;
+    let markerB = null; 
+    let distanceLine = null;
+    let coordA = null;
+
+    // Event Klik Peta
+    map.on('click', function(e) {
+        setPointA(e.latlng.lat, e.latlng.lng, "Titik Pilihan Anda");
+    });
+
+    // Mengatur Titik Asal (Rumah)
+    function setPointA(lat, lng, label) {
+        coordA = [lat, lng];
+        document.getElementById('coordInput').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+        if (markerA) map.removeLayer(markerA);
+        markerA = L.marker(coordA).addTo(map).bindPopup(label).openPopup();
+        
+        findNearestSchools();
+    }
+
+    async function searchAddress() {
+        const query = document.getElementById('addressInput').value;
+        if (!query) return alert('Silakan masukkan nama tempat atau alamat terlebih dahulu!');
+
+        try {
+            const searchQuery = query.toLowerCase().includes('bogor') ? query : query + ', Bogor';
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`);
+            const data = await response.json();
+
+            if (data && data.length > 0) {
+                const lat = parseFloat(data[0].lat);
+                const lon = parseFloat(data[0].lon);
+                setPointA(lat, lon, data[0].display_name);
+            } else {
+                alert('Alamat tidak ditemukan. Coba ketik nama tempat yang lebih spesifik.');
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Gagal mengambil data alamat.');
+        }
+    }
+
+    function findNearestSchools() {
+        if (!coordA) return;
+
+        const hasilHitung = dbSekolah.map(sekolah => {
+            const jarakKm = haversineDistance(coordA[0], coordA[1], sekolah.lat, sekolah.lng);
+            const jarakMeter = jarakKm * 1000;
+            return { ...sekolah, jarak: jarakMeter };
+        });
+
+        hasilHitung.sort((a, b) => a.jarak - b.jarak);
+
+        const container = document.getElementById('schoolsContainer');
+        container.innerHTML = ""; 
+
+        hasilHitung.forEach((sekolah, index) => {
+            const card = document.createElement('div');
+            card.className = 'school-card';
+            
+            card.onclick = () => focusOnSchool(sekolah.lat, sekolah.lng, sekolah.name, sekolah.alamat);
+
+            card.innerHTML = `
+                <div class="school-name">
+                    <span>${index + 1}. ${sekolah.name}</span>
+                    <span class="school-distance">${sekolah.jarak.toFixed(2)} m</span>
+                </div>
+                <div class="school-meta">${sekolah.alamat}</div>
+            `;
+            container.appendChild(card);
+        });
+
+        document.getElementById('resultsWrapper').style.display = 'block';
+        
+        focusOnSchool(hasilHitung[0].lat, hasilHitung[0].lng, hasilHitung[0].name, hasilHitung[0].alamat);
+    }
+
+    function focusOnSchool(latB, lngB, name, alamat) {
+        if (!coordA) return;
+
+        if (markerB) map.removeLayer(markerB);
+
+        markerB = L.marker([latB, lngB]).addTo(map).bindPopup(`<b>${name}</b><br>${alamat}`).openPopup();
+
+        if (distanceLine) map.removeLayer(distanceLine);
+        distanceLine = L.polyline([coordA, [latB, lngB]], {color: 'red', weight: 3, dashArray: '5, 5'}).addTo(map);
+
+        const bounds = L.latLngBounds([coordA, [latB, lngB]]);
+        
+        map.fitBounds(bounds, { 
+            padding: [50, 50],
+            maxZoom: 16
+        });
+    }
+
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; 
+        const dLat = deg2rad(lat2 - lat1);
+        const dLon = deg2rad(lon2 - lon1);
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+        return R * c;
+    }
+
+    function deg2rad(deg) {
+        return deg * (Math.PI/180);
+    }
+</script>
+
+</body>
+</html>
