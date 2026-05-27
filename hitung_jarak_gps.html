@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hitung Jarak GPS - SPMB SMP Kota Bogor</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f6f9;
+            color: #333;
+        }
+        
+        /* Gaya untuk Judul Utama (Selalu di Atas) */
+        .header-app {
+            max-width: 1200px;
+            margin: 0 auto 20px auto;
+            text-align: center;
+        }
+        .header-app h2 {
+            margin: 0;
+            color: #2c3e50;
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+        .header-app p {
+            margin: 5px 0 0 0;
+            color: #7f8c8d;
+            font-size: 1.1rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+
+        /* Struktur Layout Desktop */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+        }
+        
+        /* RESPONSIF UNTUK HP (Ukuran Layar di bawah 768px) */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .header-app h2 {
+                font-size: 1.5rem;
+            }
+            .header-app p {
+                font-size: 0.95rem;
+            }
+            .container {
+                display: flex;
+                flex-direction: column;
+            }
+            #map {
+                order: 1;
+                height: 350px !important;
+                margin-bottom: 10px;
+            }
+            .panel {
+                order: 2;
+            }
+        }
+
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.95rem;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        .search-group {
+            display: flex;
+            gap: 5px;
+        }
+        .search-group button {
+            width: auto;
+            background: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .search-group button:hover {
+            background: #2980b9;
+        }
+        #map {
+            height: 550px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .result-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f4fd;
+            border-left: 5px solid #3498db;
+            border-radius: 4px;
+            display: none;
+        }
+        .result-title {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        .distance-val {
+            font-size: 1.8rem;
+            color: #e74c3c;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .info-text {
+            font-size: 0.85rem;
+            color: #7f8c8d;
+            margin-top: 4px;
+        }
+        .school-detail {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #bdc3c7;
+            font-size: 0.85rem;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header-app">
+    <h2>Hitung Jarak GPS</h2>
+    <p>SPMB SMP Kota Bogor</p>
+</div>
+
+<div class="container">
+    <div class="panel">
+        <div class="form-group">
+            <label for="addressInput">Cari Alamat Rumah / Titik Awal:</label>
+            <div class="search-group">
+                <input type="text" id="addressInput" placeholder="Contoh: Stasiun Bogor">
+                <button type="button" onclick="searchAddress()">Cari</button>
+            </div>
+            <p class="info-text">*Atau langsung ketuk/klik pada peta.</p>
+        </div>
+
+        <div class="form-group">
+            <label>Koordinat Terpilih (Titik A):</label>
+            <input type="text" id="coordInput" readonly placeholder="Belum memilih titik">
+        </div>
+
+        <div class="form-group">
+            <label for="schoolSelect">Pilih Sekolah Tujuan (Titik B):</label>
+            <select id="schoolSelect" onchange="calculateDistance()">
+                <option value="">-- Pilih Sekolah --</option>
+                <option value="-6.597500000000, 106.793400000000" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Jl.Ir. H. Djuanda Bogor No 16, Paledang, Kec. Kota Bogor Tengah, Kota Bogor">SMP NEGERI 1 BOGOR</option>
+				<option value="-6.592563000000, 106.793387000000" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Jl. Gedong Sawah IV No. 9, Pabaton, Kec. Kota Bogor Tengah, Kota Bogor">SMP NEGERI 2</option>
+				<option value="-6.597200000000, 106.807400000000" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Jl Malabar No 06 Bogor, Tegallega, Kec. Kota Bogor Tengah, Kota Bogor">SMP NEGERI 3 BOGOR</option>
+				<option value="-6.591600000000, 106.788500000000" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Jl. Kartini No.16, ciwaringin, Kec. Kota Bogor Tengah, Kota Bogor">SMP NEGERI 4 BOGOR</option>
+				<option value="-6.569200000000, 106.800500000000" data-kecamatan="Kec. Tanah Sareal" data-alamat="Jl. Dadali No.10-A Bogor, Tanahsareal, Kec. Tanah Sareal, Kota Bogor">SMP NEGERI 5</option>
+				<option value="-6.578500000000, 106.771900000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="Jl. Dr. Semeru-Gang Kelor No.4, Menteng, Kec. Kota Bogor Barat, Kota Bogor">SMP NEGERI 6</option>
+				<option value="-6.599582549899, 106.791144524385" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Jl. Paledang No 25, Paledang, Kec. Kota Bogor Tengah, Kota Bogor">SMP NEGERI 7 BOGOR</option>
+				<option value="-6.569175031245, 106.806443974721" data-kecamatan="Kec. Tanah Sareal" data-alamat="Jl.Jend.A.yani No.140 Bogor, Tanahsareal, Kec. Tanah Sareal, Kota Bogor">SMP NEGERI 8 BOGOR</option>
+				<option value="-6.615672000000, 106.800342000000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Jalan Dereded V Nomor 14 Bogor, Empang, Kec. Kota Bogor Selatan, Kota Bogor">SMP NEGERI 9 BOGOR</option>
+				<option value="-6.629900000000, 106.812300000000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="JL. KOMPLEK  PERUMDA I  CIPAKU BOGOR , Cipaku, Kec. Kota Bogor Selatan, Kota Bogor">SMP NEGERI 10 BOGOR</option>
+				<option value="-6.588800000000, 106.799300000000" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Jl. Sempur No.46, Sempur, Kec. Kota Bogor Tengah, Kota Bogor">SMP NEGERI 11 BOGOR</option>
+				<option value="-6.571064702111, 106.798685407145" data-kecamatan="Kec. Tanah Sareal" data-alamat="Jl. Pemuda No.50 Bogor, Tanah Sareal, Kec. Tanah Sareal, Kota Bogor">SMP NEGERI 12 BOGOR</option>
+				<option value="-6.632900000000, 106.802600000000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Jl. Pamoyanan No. 022, Ranggamekar, Kec. Kota Bogor Selatan, Kota Bogor">SMP NEGERI 13 BOGOR</option>
+				<option value="-6.555100000000, 106.747500000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="Jl.Sindang Barang Jero No.6 Situ Gede, Situgede, Kec. Kota Bogor Barat, Kota Bogor">SMP NEGERI 14 BOGOR</option>
+				<option value="-6.547000000000, 106.822100000000" data-kecamatan="Kec. Kota Bogor Utara" data-alamat="Jl. Mandala No. 50, Ciparigi, Kec. Kota Bogor Utara, Kota Bogor">SMP NEGERI 15 BOGOR</option>
+				<option value="-6.532900000000, 106.773100000000" data-kecamatan="Kec. Tanah Sareal" data-alamat="Jalan Baru Kayumanis, KAYUMANIS, Kec. Tanah Sareal, Kota Bogor">SMP NEGERI 16</option>
+				<option value="-6.673406700000, 106.840883300000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Rancamaya, Bojongkerta, Kec. Kota Bogor Selatan, Kota Bogor">SMP NEGERI 17 BOGOR</option>
+				<option value="-6.611985000000, 106.825913300000" data-kecamatan="Kec. Kota Bogor Timur" data-alamat="Jl. Jati Luhur Blok H-4 Komplek Baranangsiang Indah Bogor, Katulampa, Kec. Kota Bogor Timur, Kota Bogor">SMP NEGERI 18 KOTA BOGOR</option>
+				<option value="-6.547100000000, 106.809900000000" data-kecamatan="Kec. Kota Bogor Utara" data-alamat="Jl. Raya Pemda Villa Bogor Indah, Kedung Halang, Kec. Kota Bogor Utara, Kota Bogor">SMP NEGERI 19 BOGOR</option>
+				<option value="-6.583606000000, 106.799951000000" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Jl. Ceremai Ujung No. 1, Sempur, Kec. Kota Bogor Tengah, Kota Bogor">SMP NEGERI 20</option>
+				<option value="-6.518299000000, 106.788795000000" data-kecamatan="Kec. Tanah Sareal" data-alamat="Komp. Perumahan Taman Griya Kencana, Kencana, Kec. Tanah Sareal, Kota Bogor">SMP NEGERI 21 BOGOR</option>
+				<option value="-6.612730000000, 106.817980000000" data-kecamatan="Kec. Kota Bogor Timur" data-alamat="Jl. Baranangsiang  Indah V\/14, Baranangsiang, Kec. Kota Bogor Timur, Kota Bogor">SMP NEGERI 22 BOGOR</option>
+				<option value="-6.588269600000, 106.832948700000" data-kecamatan="Kec. Kota Bogor Utara" data-alamat="Kampung Kebon Karet RT 001 RW 016, Cimahpar, Kec. Kota Bogor Utara, Kota Bogor">SMP NEGERI 23 BOGOR</option>
+				<option value="0.000000000000, 0.000000000000" data-kecamatan="" data-alamat="Jl. Batuhulung Rt. 01\/03 Bogor, Margajaya, , ">MTs Ar Rifa i</option>
+				<option value="0.000000000000, 0.000000000000" data-kecamatan="" data-alamat="Jln. Sindang Barang Pilar 1 RT 006 RW 07, Sindangbarang, , ">MTs AR-ROZZAAQ</option>
+				<option value="-6.624700000000, 106.835200000000" data-kecamatan="" data-alamat="Katulampa Buleud Rt 05 Rw 08, Katulampa, , ">MTs Darul Ma`wa</option>
+				<option value="0.000000000000, 0.000000000000" data-kecamatan="" data-alamat="Jl. Bulak Amah No. 18 RT. 002\/006, MEKAR WANGI, , ">MTs HIBRUL ULAMA</option>
+				<option value="-6.626000000000, 106.823400000000" data-kecamatan="" data-alamat="JL. PESANTREN BANTAR PEUTEUY IV\/II TAJUR, TAJUR, , ">MTSS AL-BARKAH</option>
+				<option value="-6.612000000000, 106.821600000000" data-kecamatan="" data-alamat="JL. JAGUNG CIHEULEUT RT 07\/VIII BARANANGSIANG, Baranangsiang, , ">MTSS AL-HIDAYAH</option>
+				<option value="-6.581600000000, 106.822200000000" data-kecamatan="" data-alamat="JL. PEMDA BARU KM 55 KEDUNG HALANG, KEDUNG HALANG, , ">MTSS ARROHMAH</option>
+				<option value="-6.515500000000, 106.782300000000" data-kecamatan="" data-alamat="JL. BULAK AMAH RT 04\/06 MEKARWANGI, Mekarwangi, , ">MTSS BINA MADANI</option>
+				<option value="-6.615400000000, 106.818300000000" data-kecamatan="" data-alamat="JL. DURIAN RAYA NO 219 BANTAR KEMANG, BANTAR KEMANG, , ">MTSS DARUL ULUM</option>
+				<option value="-6.579700000000, 106.825000000000" data-kecamatan="" data-alamat="JL. RADEN KHANIFIAH CIMAHPAR, -, , ">MTSS DARUL ULUM</option>
+				<option value="-6.653400000000, 106.799800000000" data-kecamatan="" data-alamat="JL. RE.SOEMANTADIREJA NO15 PAMOYANAN, Pamoyanan, , ">MTSS DARUSSALAM</option>
+				<option value="0.000000000000, 0.000000000000" data-kecamatan="" data-alamat="JL. PAGENTONGAN RT 01\/06, Loji, , ">MTSS INSAN CENDIKIA AL UM</option>
+				<option value="-6.532500000000, 106.793400000000" data-kecamatan="" data-alamat="KALIMURNI RT 01 RW 01 NO 80 KENCANA, KENCANA, , ">MTSS MANBAUL ISLAM</option>
+				<option value="-6.565200000000, 106.801200000000" data-kecamatan="" data-alamat="JL. KEBON PEDES GG MESJID NO. 16, Kebonpedes, , ">MTSS NURROSYIDIYAH</option>
+				<option value="-6.531700000000, 106.790100000000" data-kecamatan="" data-alamat="JL. RAYA KENCANA RT 01\/02, Kencana, , ">MTSS PSA NURUL HUDA</option>
+				<option value="-6.616400000000, 106.805700000000" data-kecamatan="" data-alamat="JL PAHLAWAN N0. 57 B, BONDONGAN, , ">MTSS PUI</option>
+				<option value="-6.659200000000, 106.835000000000" data-kecamatan="" data-alamat="JL. RAYA CILEBUT KEDUNG HALANG SENTRAL, SUKARESMI, , ">MTSS SIROJUL MUNIR</option>
+				<option value="-6.538100000000, 106.766800000000" data-kecamatan="" data-alamat="JL. BONDOL KAYUMANIS, KAYUMANIS, , ">MTSS TARBIYATUSSIBYAN</option>
+				<option value="-6.563200000000, 106.784800000000" data-kecamatan="" data-alamat="TAMAN CIMANGGU JL. H. HAMID NO 29 , KEDUNG WARINGIN, , ">MTSS YAPENDI</option>
+				<option value="-6.570800000000, 106.751500000000" data-kecamatan="" data-alamat="JL. RAYA TERUSAN CIFOR BABAKAN NO. 14, -, , ">MTSS YASIBA</option>
+				<option value="0.000000000000, 0.000000000000" data-kecamatan="" data-alamat="KAMPUNG MUNJUL RT. 02\/06 KEL. KAYUMANIS, Kayumanis, , ">MTs UTSMANIL HAKIM</option>
+				<option value="-6.548800000000, 106.773100000000" data-kecamatan="Kec. Tanah Sareal" data-alamat="Jl. KH. Sholeh Iskandar, Seremped, Cibadak, Kec. Tanah Sareal, Kota Bogor">SMP AL-FATAH</option>
+				<option value="-6.606600000000, 106.794700000000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Jl. Pekojan No. 08 Kota Bogor, Empang, Kec. Kota Bogor Selatan, Kota Bogor">SMP AL-IRSYAD BOGOR</option>
+				<option value="-6.645668300000, 106.781570000000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Jl.Raya Cibereum Indah No.05, Mulyaharja, Kec. Kota Bogor Selatan, Kota Bogor">SMP BAGUS</option>
+				<option value="-6.618800000000, 106.810700000000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Jl. Batutulis No. 5 C Bogor, Batutulis, Kec. Kota Bogor Selatan, Kota Bogor">SMP BHAKTI INSANI BOGOR</option>
+				<option value="-6.566800000000, 106.782700000000" data-kecamatan="Kec. Tanah Sareal" data-alamat="Taman Cimanggu, Kedungwaringin, Kec. Tanah Sareal, Kota Bogor">SMP BINA GREHA</option>
+				<option value="-6.601800000000, 106.781200000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="Jl. Jabaru II No. 9 RT 002 RW 005, Pasirkuda, Kec. Kota Bogor Barat, Kota Bogor">SMP Bina Karya Kreatif</option>
+				<option value="-6.591400000000, 106.780500000000" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Jl. Ledeng Sindangsari No. 5, Kebonkelapa, Kec. Kota Bogor Tengah, Kota Bogor">SMP BINA SEJAHTERA</option>
+				<option value="-6.668253300000, 106.843586700000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Jl Raya H.E. Sukma Bakomsari No 44, Harjasari, Kec. Kota Bogor Selatan, Kota Bogor">SMP DARMA BAKTI</option>
+				<option value="-6.631800000000, 106.805400000000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Jln Pamoyanan No 06 A, Ranggamekar, Kec. Kota Bogor Selatan, Kota Bogor">SMP DASA SEMESTA</option>
+				<option value="-6.644503300000, 106.806040000000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Jl. Ciranjang I Depan No. 42, Pamoyanan, Kec. Kota Bogor Selatan, Kota Bogor">SMP HARAPAN TARUNA</option>
+				<option value="-6.554400000000, 106.744200000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="Jl Cilubang Nagrak, Situgede, Kec. Kota Bogor Barat, Kota Bogor">SMP INDIKA</option>
+				<option value="-6.581400000000, 106.764900000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="JL. Selakopi No. 32 RT. 06 RW. 08, Sindangbarang, Kec. Kota Bogor Barat, Kota Bogor">SMP INFOKOM</option>
+				<option value="-6.603400000000, 106.785500000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="Jl. R. ARIA SURIALAGA No. 111 Bogor, Pasirkuda, Kec. Kota Bogor Barat, Kota Bogor">SMP ISLAM AL MUSTARIH</option>
+				<option value="-6.576400000000, 106.757300000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="JL. RAYA SINDANG BARANG NO. 16, Sindangbarang, Kec. Kota Bogor Barat, Kota Bogor">SMP IT AL-YASMIN</option>
+				<option value="-6.523800000000, 106.778100000000" data-kecamatan="Kec. Tanah Sareal" data-alamat="JL. KH. AHMAD SYA\u2019YANI KP. SUMURWANGI, Mekarwangi, Kec. Tanah Sareal, Kota Bogor">SMP IT AR ROHMANIYAH</option>
+				<option value="-6.579000000000, 106.809100000000" data-kecamatan="Kec. Kota Bogor Utara" data-alamat="Jl. Pajajaran No.217 A, Bantarjati, Kec. Kota Bogor Utara, Kota Bogor">SMP KOSGORO</option>
+				<option value="-6.561100000000, 106.826500000000" data-kecamatan="Kec. Kota Bogor Utara" data-alamat="Jl. Batara No. 9, Ciluar, Kec. Kota Bogor Utara, Kota Bogor">SMP KURNIA</option>
+				<option value="-6.611100000000, 106.797700000000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Jln. Pahlawan Gang Raden Saleh No.55, Empang, Kec. Kota Bogor Selatan, Kota Bogor">SMP MUHAMMADIYAH KOTA BOGOR</option>
+				<option value="-6.586500000000, 106.809700000000" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Cimanggu Kecil Bogor, Ciwaringin, Kec. Kota Bogor Tengah, Kota Bogor">SMP MUTIARA KARTINI</option>
+				<option value="-6.578900000000, 106.818400000000" data-kecamatan="Kec. Kota Bogor Utara" data-alamat="Jl.panduraya Perum Indraprasta, Bantarjati, Kec. Kota Bogor Utara, Kota Bogor">SMP PANDUTAMA</option>
+				<option value="-6.558400000000, 106.823900000000" data-kecamatan="Kec. Kota Bogor Utara" data-alamat="Jl. Tanah Baru No. 23, Tanah Baru, Kec. Kota Bogor Utara, Kota Bogor">SMP PERSADA</option>
+				<option value="-6.616326700000, 106.805490000000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Jl.pahlawan No.57\/b, Bondongan, Kec. Kota Bogor Selatan, Kota Bogor">SMP PUI</option>
+				<option value="-6.600900000000, 106.776000000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="Jl.Rimba Mulya II RT.02 RW 03, Pasirmulya, Kec. Kota Bogor Barat, Kota Bogor">SMP RIMBA TERUNA</option>
+				<option value="-6.567100000000, 106.806300000000" data-kecamatan="Kec. Tanah Sareal" data-alamat="Jl Kol Enjo Marta Disastra III, Kedungbadak, Kec. Tanah Sareal, Kota Bogor">SMP SILIWANGI BOGOR</option>
+				<option value="-6.565800000000, 106.765200000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="Jl. Semplak Cijajhe No. 19 , Semplak, Kec. Kota Bogor Barat, Kota Bogor">SMP TAMAN CAHAYA</option>
+				<option value="-6.583100000000, 106.788200000000" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Jl. Merdeka No. 172, Ciwaringin, Kec. Kota Bogor Tengah, Kota Bogor">SMP TAMANSISWA (TAMAN DEWASA)</option>
+				<option value="-6.595000000000, 106.785700000000" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Jl. Veteran No.46 Bogor, Kebonkelapa, Kec. Kota Bogor Tengah, Kota Bogor">SMP TARUNA ANDIGHA</option>
+				<option value="-6.579300000000, 106.799700000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="JL. CURUG INDAH NO. 31 RT. 04 RW. 05 , Semplak, Kec. Kota Bogor Barat, Kota Bogor">SMP TUNAS INSANI</option>
+				<option value="-6.550200000000, 106.772000000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="Jl. Mekar Saluyu No. 16 Komplek Taman Yasmin Sektor 1, Cilendek Barat, Kec. Kota Bogor Barat, Kota Bogor">SMP WINDIAN NUGRAHA</option>
+				<option value="-6.573500000000, 106.804300000000" data-kecamatan="Kec. Tanah Sareal" data-alamat="Jalan Jend. Ahmad Yani I, Tanahsareal, Kec. Tanah Sareal, Kota Bogor">SMP YAPIS</option>
+				<option value="-6.613315000000, 106.829777000000" data-kecamatan="Kec. Kota Bogor Timur" data-alamat="Cikeas Katulampa, Baranangsiang, Kec. Kota Bogor Timur, Kota Bogor">SMP YASIH</option>
+				<option value="-6.564600000000, 106.768200000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="JL. DR. SEMERU NO. 42, Menteng, Kec. Kota Bogor Barat, Kota Bogor">SMP YKTB</option>
+				<option value="-6.592600000000, 106.806300000000" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Jl. Lodaya 1 No 57, Babakan, Kec. Kota Bogor Tengah, Kota Bogor">SMP ISLAM YTM 1</option>
+				<option value="-6.586300000000, 106.804000000000" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Jl. PAPANDAYAN NO. 25, Babakan, Kec. Kota Bogor Tengah, Kota Bogor">SMP PGRI 1 BOGOR</option>
+				<option value="-6.636078300000, 106.826716700000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Jln. Raya Tajur No.24-BIOTROP, Pakuan, Kec. Kota Bogor Selatan, Kota Bogor">SMP PGRI 2</option>
+				<option value="-6.618906700000, 106.806776700000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Jl.batutulis, Batutulis, Kec. Kota Bogor Selatan, Kota Bogor">SMP PGRI 4</option>
+				<option value="-6.584800000000, 106.808600000000" data-kecamatan="Kec. Kota Bogor Tengah" data-alamat="Jl. Pajajaran (Blk. Komplek BPT) Bogor, Babakan, Kec. Kota Bogor Tengah, Kota Bogor">SMP PGRI 5</option>
+				<option value="-6.569700000000, 106.810400000000" data-kecamatan="Kec. Kota Bogor Utara" data-alamat="Jl. Pandawa Warung Jambu, Bantarjati, Kec. Kota Bogor Utara, Kota Bogor">SMP PGRI 6</option>
+				<option value="-6.558200000000, 106.816300000000" data-kecamatan="Kec. Kota Bogor Utara" data-alamat="Jl. Raya Cibuluh Gg. Kondang Rt. 03\/08 Kel. Cibuluh Kec. Bogor Utara Kota Bogor, Cibuluh, Kec. Kota Bogor Utara, Kota Bogor">SMP PGRI 7 KOTA BOGOR</option>
+				<option value="-6.566800000000, 106.762300000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="Jl. Raya Semplak-Cemplang No. 276 Kota Bogor, Cilendek Barat, Kec. Kota Bogor Barat, Kota Bogor">SMP PGRI 8</option>
+				<option value="-6.559200000000, 106.793900000000" data-kecamatan="Kec. Tanah Sareal" data-alamat="Jl. Kh. Soleh Iskandar No. 21 Kota Bogor, Kedungbadak, Kec. Tanah Sareal, Kota Bogor">SMP PGRI 9</option>
+				<option value="-6.620000000000, 106.799800000000" data-kecamatan="Kec. Kota Bogor Selatan" data-alamat="Jl. Rangga Mekar No. 35  Rt. 5 \/ 5, Ranggamekar, Kec. Kota Bogor Selatan, Kota Bogor">SMP PGRI 11</option>
+				<option value="-6.569800000000, 106.771500000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="Jl. Cilendek Barat, Cilendek Barat, Kec. Kota Bogor Barat, Kota Bogor">SMP PGRI 12 BOGOR</option>
+				<option value="-6.572200000000, 106.756600000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="Sindang Barang, Sindangbarang, Kec. Kota Bogor Barat, Kota Bogor">SMP PGRI 13 BOGOR</option>
+				<option value="-6.623393300000, 106.825413300000" data-kecamatan="Kec. Kota Bogor Timur" data-alamat="JL. Parung Banteng, Katulampa, Kec. Kota Bogor Timur, Kota Bogor">SMP PGRI 15 BOGOR</option>
+				<option value="-6.589200000000, 106.771200000000" data-kecamatan="Kec. Kota Bogor Barat" data-alamat="Jl. Gunung Batu Loji, Loji, Kec. Kota Bogor Barat, Kota Bogor">SMP YP. 17 BOGOR</option>
+            </select>
+        </div>
+
+        <div id="resultBox" class="result-box">
+            <div class="result-title">Jarak Garis Lurus:</div>
+            <div id="distanceOutput" class="distance-val">0 m</div>
+            <div id="routeInfo" class="info-text" style="font-weight: bold; color: #34495e;"></div>
+            
+            <div id="schoolDetailOutput" class="school-detail"></div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    const defaultCenter = [-6.5971, 106.7986];
+    const map = L.map('map').setView(defaultCenter, 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    let markerA = null;
+    let markerB = null;
+    let distanceLine = null;
+    
+    let coordA = null;
+    let coordB = null;
+
+    map.on('click', function(e) {
+        setPointA(e.latlng.lat, e.latlng.lng, "Titik Pilihan Anda");
+    });
+
+    function setPointA(lat, lng, label) {
+        coordA = [lat, lng];
+        document.getElementById('coordInput').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+        if (markerA) map.removeLayer(markerA);
+        markerA = L.marker(coordA).addTo(map).bindPopup(label).openPopup();
+        
+        map.panTo(coordA); 
+        calculateDistance();
+    }
+
+    async function searchAddress() {
+        const query = document.getElementById('addressInput').value;
+        if (!query) return alert('Silakan masukkan nama tempat atau alamat terlebih dahulu!');
+
+        try {
+            const searchQuery = query.toLowerCase().includes('bogor') ? query : query + ', Bogor';
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`);
+            const data = await response.json();
+
+            if (data && data.length > 0) {
+                const lat = parseFloat(data[0].lat);
+                const lon = parseFloat(data[0].lon);
+                setPointA(lat, lon, data[0].display_name);
+            } else {
+                alert('Alamat tidak ditemukan. Coba ketik nama tempat yang lebih spesifik.');
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Gagal mengambil data alamat.');
+        }
+    }
+
+    function calculateDistance() {
+        const schoolSelect = document.getElementById('schoolSelect');
+        const schoolValue = schoolSelect.value;
+        
+        if (!schoolValue || !coordA) {
+            if (distanceLine) map.removeLayer(distanceLine);
+            if (markerB) map.removeLayer(markerB);
+            document.getElementById('resultBox').style.display = 'none';
+            return;
+        }
+
+        const [latB, lngB] = schoolValue.split(',').map(Number);
+        coordB = [latB, lngB];
+        
+        const selectedOption = schoolSelect.options[schoolSelect.selectedIndex];
+        const schoolName = selectedOption.text;
+        const kecamatan = selectedOption.getAttribute('data-kecamatan');
+        const alamat = selectedOption.getAttribute('data-alamat');
+
+        if (markerB) map.removeLayer(markerB);
+        markerB = L.marker(coordB).addTo(map).bindPopup(`<b>${schoolName}</b><br>${alamat}`);
+
+        const R = 6371; 
+        const dLat = deg2rad(coordB[0] - coordA[0]);
+        const dLon = deg2rad(coordB[1] - coordA[1]);
+        
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(deg2rad(coordA[0])) * Math.cos(deg2rad(coordB[0])) * Math.sin(dLon/2) * Math.sin(dLon/2); 
+            
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+        const distance = R * c; 
+
+        if (distanceLine) map.removeLayer(distanceLine);
+        distanceLine = L.polyline([coordA, coordB], {color: 'red', weight: 3, dashArray: '5, 5'}).addTo(map);
+		
+		const bounds = L.latLngBounds([coordA, coordB]);
+        map.fitBounds(bounds, { padding: [50, 50] });
+		
+        const distanceInMeter = distance * 1000;
+        document.getElementById('distanceOutput').innerText = distanceInMeter.toFixed(2) + ' m';
+        document.getElementById('routeInfo').innerText = `Tujuan: ${schoolName}`;
+        document.getElementById('schoolDetailOutput').innerHTML = `
+            ${alamat}
+        `;
+        
+        document.getElementById('resultBox').style.display = 'block';
+    }
+
+    function deg2rad(deg) {
+        return deg * (Math.PI/180);
+    }
+</script>
+
+</body>
+</html>
